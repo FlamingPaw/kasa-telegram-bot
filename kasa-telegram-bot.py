@@ -89,7 +89,7 @@ keyboard = [
 reply_markup = InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Turn the Pump:", reply_markup=reply_markup)
+    await update.message.reply_text("Turn the Plug:", reply_markup=reply_markup)
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global onsec
@@ -103,22 +103,22 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     now = int(time.time())
 
     if(query.data == "on"): # If the on button was pressed
-        await p.turn_on() # Turn the pump on
+        await p.turn_on() # Turn the plug on
         laston = int(time.time())
     elif(query.data == "off"): # If the off button was pressed
-        await p.turn_off() # Turn the pump off
+        await p.turn_off() # Turn the plug off
         onsec = onsec + (now - laston)
         laston = 0
     elif(query.data == "2s-on"): # If the off button was pressed
-        await p.turn_on() # Turn the pump on
+        await p.turn_on() # Turn the plug on
         # onsec = onsec + (now - laston)
         laston = int(time.time())
         try:
-            await query.edit_message_text(text=f"Currently {query.data}.\nOn for " + str(onsec) + " total seconds this session.\nTurn the Pump:", reply_markup=reply_markup) # Update the message text
+            await query.edit_message_text(text=f"Currently {query.data}.\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
         except Exception:
             pass
         time.sleep(2)
-        await p.turn_off() # Turn the pump off
+        await p.turn_off() # Turn the plug off
         now = int(time.time())
         onsec = onsec + (now - laston)
         laston = 0
@@ -127,14 +127,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # CallbackQueries need to be answered, even if no notification to the user is needed
     # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
     try:
-        await query.edit_message_text(text=f"Currently {query.data}.\nOn for " + str(onsec) + " total seconds this session.\nTurn the Pump:", reply_markup=reply_markup) # Update the message text
+        await query.edit_message_text(text=f"Currently {query.data}.\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
     except Exception:
         pass
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Displays info on how to use the bot.
-    await update.message.reply_text("Use /start to use this bot.\n\nCreated by @FlamingPaw\Run your own at https://github.com/FlamingPaw/kasa-telegram-bot")
+    await update.message.reply_text("Use /start to use this bot.\n\nCreated by @FlamingPaw\nRun your own at https://github.com/FlamingPaw/kasa-telegram-bot")
 
 def main() -> None:
     # Run the bot.
