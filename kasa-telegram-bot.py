@@ -5,7 +5,7 @@
 
 from kasa import SmartPlug
 from kasa import Discover
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, constants
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 from telegram import __version__ as TG_VER
 from getmac import get_mac_address
@@ -100,7 +100,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Parses the CallbackQuery and updates the message text.
     query = update.callback_query
-    action_username = update.callback_query.message.chat.username
+    
+    if(query.message.chat.type == constants.ChatType.PRIVATE):
+        action_username = query.message.chat.username
+    elif(query.message.chat.type == constants.ChatType.GROUP):
+        action_username = query.message.reply_to_message.from_user.username
+    else:
+        logger.error("The ChatType of " + query.message.chat.type + " is not supported yet.")
 
     last_users_text = ''
     user_history = int(config.get('TELEGRAM', 'user_history'))
