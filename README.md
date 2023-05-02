@@ -22,6 +22,9 @@ Your token will look something like this:
 Make sure to save your token in a secure place, treat it like a password and don't share it with anyone.
 Take that token, and place it in `config.ini` at `bot_token =`
 
+## User History
+This is the number of history lines to show under the current status. 0 disables this.
+
 # Manual Install
 1. Download Python from https://www.python.org/downloads/
 2. Download pip from https://pip.pypa.io/en/stable/installation/
