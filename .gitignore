@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 config.ini
+kasa-telegram-bot-REKNAR_CUSTOM.py
