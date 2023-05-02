@@ -103,7 +103,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     if(query.message.chat.type == constants.ChatType.PRIVATE):
         action_username = query.message.chat.username
-    elif(query.message.chat.type == constants.ChatType.GROUP):
+    elif(query.message.chat.type == constants.ChatType.GROUP or query.message.chat.type == constants.ChatType.SUPERGROUP):
         action_username = query.message.reply_to_message.from_user.username
     else:
         logger.error("The ChatType of " + query.message.chat.type + " is not supported yet.")
