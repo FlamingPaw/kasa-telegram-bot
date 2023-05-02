@@ -35,12 +35,14 @@ logger = logging.getLogger(__name__)
 
 onsec = 0
 laston = int(time.time())
+last_users = []
 
 config = ConfigParser()
 
 if not os.path.exists('config.ini'):
     config['KASA'] = {'ip': '192.168.xxx.xxx'}
     config['TELEGRAM'] = {'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+    config['TELEGRAM'] = {'user_history': '3'}
 
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
@@ -94,8 +96,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global onsec
     global laston
+    global last_users
+
     # Parses the CallbackQuery and updates the message text.
     query = update.callback_query
+    action_username = update.callback_query.message.chat.username
+
+    last_users_text = ''
+    user_history = int(config.get('TELEGRAM', 'user_history'))
+
+    if (user_history > 0):
+        last_users.append([action_username, query.data])
+
+        for user,action in last_users[-user_history:]:
+            last_users_text += "\n" + user + " turned the plug " + action + "."
+        last_users_text += "\n"
+
 
     await p.update()  # Request the update
     await query.answer()
@@ -103,31 +119,34 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     now = int(time.time())
 
     if(query.data == "on"): # If the on button was pressed
-        await p.turn_on() # Turn the plug on
-        laston = int(time.time())
+        if p.is_off:
+            await p.turn_on() # Turn the plug on
+            laston = int(time.time())
     elif(query.data == "off"): # If the off button was pressed
-        await p.turn_off() # Turn the plug off
-        onsec = onsec + (now - laston)
-        laston = 0
+        if p.is_on:
+            await p.turn_off() # Turn the plug off
+            onsec = onsec + (now - laston)
+            laston = 0
     elif(query.data == "2s-on"): # If the off button was pressed
-        await p.turn_on() # Turn the plug on
-        # onsec = onsec + (now - laston)
-        laston = int(time.time())
-        try:
-            await query.edit_message_text(text=f"Currently {query.data}.\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
-        except Exception:
-            pass
-        time.sleep(2)
-        await p.turn_off() # Turn the plug off
-        now = int(time.time())
-        onsec = onsec + (now - laston)
-        laston = 0
-        query.data = 'off'
+        if p.is_off:
+            await p.turn_on() # Turn the plug on
+            # onsec = onsec + (now - laston)
+            laston = int(time.time())
+            try:
+                await query.edit_message_text(text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
+            except Exception:
+                pass
+            time.sleep(2)
+            await p.turn_off() # Turn the plug off
+            now = int(time.time())
+            onsec = onsec + (now - laston)
+            laston = 0
+            query.data = 'off'
 
     # CallbackQueries need to be answered, even if no notification to the user is needed
     # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
     try:
-        await query.edit_message_text(text=f"Currently {query.data}.\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
+        await query.edit_message_text(text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
     except Exception:
         pass
 
