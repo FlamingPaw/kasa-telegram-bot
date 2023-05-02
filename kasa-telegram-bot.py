@@ -92,6 +92,7 @@ reply_markup = InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Turn the Plug:", reply_markup=reply_markup)
+    await p.turn_off() # Turn the plug off
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global onsec
