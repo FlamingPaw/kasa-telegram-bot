@@ -159,7 +159,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await plugTimer(update, context, int(config.get("TELEGRAM", query.data)), action_username, last_users_text)
     elif(query.data == "webcam-photo"): # If the webcam capture button was pressed
         query.data = 'Capturing webcam image'
-        query = await context.application.bot.send_message(query.message.chat_id, text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup)
+        await query.edit_message_text(text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup)
         # reading the input using the camera
         result, image = cam.read()
         
