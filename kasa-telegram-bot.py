@@ -44,6 +44,9 @@ if not os.path.exists('config.ini'):
     config['KASA'] = {'ip': '192.168.xxx.xxx'}
     config['TELEGRAM'] = {'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
     config['TELEGRAM'] = {'user_history': '3'}
+    config['TELEGRAM'] = {'button_1': '2'}
+    config['TELEGRAM'] = {'button_2': '5'}
+    config['TELEGRAM'] = {'button_3': '10'}
     config['WEBCAM'] = {'enable': 'false'}
     config['WEBCAM'] = {'port': '0'}
     config['WEBCAM'] = {'resolution_height': '1920'}
@@ -87,15 +90,15 @@ p = SmartPlug(kasaip)
 # Sends a message with three inline buttons attached.
 keyboard = [
     [
-        InlineKeyboardButton("ON", callback_data="on"),
-        InlineKeyboardButton("OFF", callback_data="off"),
-        InlineKeyboardButton("ON FOR 2 SEC", callback_data="2s-on"),
+        InlineKeyboardButton(config.get('TELEGRAM', 'button_1') + " Seconds", callback_data="button_1"),
+        InlineKeyboardButton(config.get('TELEGRAM', 'button_2') + " Seconds", callback_data="button_2"),
+        InlineKeyboardButton(config.get('TELEGRAM', 'button_3') + " Seconds", callback_data="button_3"),
     ],
 ]
 
 if(config.get('WEBCAM', 'enabled') == 'true') :
     logging.info('Config instructed to use Webcam, adding button.')
-    keyboard = [keyboard[0] + [InlineKeyboardButton("WEBCAM CAPTURE", callback_data="webcam-photo")]]
+    keyboard = [keyboard[0] + [InlineKeyboardButton("Webcam Photo", callback_data="webcam-photo")]]
     # initialize the camera
     # If you have multiple cameras connected with current device, assign a value in webcam_port config according to that.
     cam_port = config.get('WEBCAM', 'port')
@@ -110,7 +113,13 @@ else:
 reply_markup = InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await startMessage(update, context)
+    await startPlug()
+
+async def startMessage(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Turn the Plug:", reply_markup=reply_markup)
+
+async def startPlug() -> None:
     await p.turn_off() # Turn the plug off
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -136,40 +145,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         last_users.append([action_username, query.data])
 
         for user,action in last_users[-user_history:]:
-            last_users_text += "\n" + user + " turned the plug " + action + "."
+            if(action == 'webcam-photo'):
+                last_users_text += "\n" + user + " captured a webcam photo."
+            else:
+                last_users_text += "\n" + user + " turned the plug on for " + config.get("TELEGRAM", action) + " seconds."
         last_users_text += "\n"
 
 
     await p.update()  # Request the update
     await query.answer()
 
-    now = int(time.time())
-
-    if(query.data == "on"): # If the on button was pressed
-        if p.is_off:
-            await p.turn_on() # Turn the plug on
-            laston = int(time.time())
-    elif(query.data == "off"): # If the off button was pressed
-        if p.is_on:
-            await p.turn_off() # Turn the plug off
-            onsec = onsec + (now - laston)
-            laston = 0
-    elif(query.data == "2s-on"): # If the off button was pressed
-        if p.is_off:
-            await p.turn_on() # Turn the plug on
-            # onsec = onsec + (now - laston)
-            laston = int(time.time())
-            try:
-                await query.edit_message_text(text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
-            except Exception:
-                pass
-            time.sleep(2)
-            await p.turn_off() # Turn the plug off
-            now = int(time.time())
-            onsec = onsec + (now - laston)
-            laston = 0
-            query.data = 'off'
+    if(query.data == "button_1" or query.data == "button_2" or query.data == "button_3"): # If the off button was pressed
+        await plugTimer(update, context, int(config.get("TELEGRAM", query.data)), action_username, last_users_text)
     elif(query.data == "webcam-photo"): # If the webcam capture button was pressed
+        query.data = 'Capturing webcam image'
+        query = await context.application.bot.send_message(query.message.chat_id, text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup)
         # reading the input using the camera
         result, image = cam.read()
         
@@ -184,6 +174,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await context.application.bot.sendPhoto(query.message.chat_id, webcam_open),
             webcam_open.close(),
             os.remove(webcam_tmpfile)
+            if(p.is_on):
+                query.data = 'on'
+            else:
+                query.data = 'off'
+            query = await context.application.bot.send_message(query.message.chat_id, text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup)
         
         # If captured image is corrupted, moving to else part
         else:
@@ -195,6 +190,32 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await query.edit_message_text(text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
     except Exception:
         pass
+
+async def plugTimer(update: Update, context: ContextTypes.DEFAULT_TYPE, timesec, action_username, last_users_text) -> None:
+    global onsec
+    global laston
+
+    now = int(time.time())
+
+    # Parses the CallbackQuery and updates the message text.
+    query = update.callback_query
+    
+    await p.update()  # Request the update
+
+    if p.is_off:
+        await p.turn_on() # Turn the plug on
+        # onsec = onsec + (now - laston)
+        laston = int(time.time())
+        try:
+            await query.edit_message_text(text=f"Currently on for " + str(config.get("TELEGRAM", query.data)) + " seconds by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
+        except Exception:
+            pass
+        time.sleep(timesec)
+        await p.turn_off() # Turn the plug off
+        now = int(time.time())
+        onsec = onsec + (now - laston)
+        laston = 0
+        query.data = 'off'
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Displays info on how to use the bot.
@@ -209,6 +230,8 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(CommandHandler("help", help_command))
+
+    asyncio.run(startPlug())
 
     # Run the bot until the user presses Ctrl-C
     loop = asyncio.new_event_loop()
