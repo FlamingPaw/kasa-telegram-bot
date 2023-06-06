@@ -14,6 +14,7 @@ import os
 import time
 import asyncio
 import logging
+import cv2 as cv
 
 try:
     from telegram import __version_info__
@@ -43,6 +44,10 @@ if not os.path.exists('config.ini'):
     config['KASA'] = {'ip': '192.168.xxx.xxx'}
     config['TELEGRAM'] = {'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
     config['TELEGRAM'] = {'user_history': '3'}
+    config['WEBCAM'] = {'enable': 'false'}
+    config['WEBCAM'] = {'port': '0'}
+    config['WEBCAM'] = {'resolution_height': '1920'}
+    config['WEBCAM'] = {'resolution_height': '1080'}
 
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
@@ -88,6 +93,20 @@ keyboard = [
     ],
 ]
 
+if(config.get('WEBCAM', 'enabled') == 'true') :
+    logging.info('Config instructed to use Webcam, adding button.')
+    keyboard = [keyboard[0] + [InlineKeyboardButton("WEBCAM CAPTURE", callback_data="webcam-photo")]]
+    # initialize the camera
+    # If you have multiple cameras connected with current device, assign a value in webcam_port config according to that.
+    cam_port = config.get('WEBCAM', 'port')
+    logging.info('Using camera ' + cam_port)
+    cam = cv.VideoCapture(int(cam_port))
+    cam.set(cv.CAP_PROP_FRAME_WIDTH, int(config.get('WEBCAM', 'resolution_height')))
+    cam.set(cv.CAP_PROP_FRAME_HEIGHT, int(config.get('WEBCAM', 'resolution_width')))
+    cam.set(cv.CAP_PROP_FOURCC, cv.VideoWriter_fourcc(*"MJPG"))
+else:
+    logging.info('Webcam NOT being used.')
+
 reply_markup = InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -98,6 +117,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global onsec
     global laston
     global last_users
+    global cam
 
     # Parses the CallbackQuery and updates the message text.
     query = update.callback_query
@@ -149,6 +169,25 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             onsec = onsec + (now - laston)
             laston = 0
             query.data = 'off'
+    elif(query.data == "webcam-photo"): # If the webcam capture button was pressed
+        # reading the input using the camera
+        result, image = cam.read()
+        
+        # If image will detected without any error, 
+        # show result
+        if result:
+            # saving image in local storage
+            webcam_tmpfile = "kasa-telegram-bot_webcam-" + str(time.time()) + ".png"
+            cv.imwrite(webcam_tmpfile, image)
+            query = update.callback_query
+            webcam_open = open(webcam_tmpfile, "rb")
+            await context.application.bot.sendPhoto(query.message.chat_id, webcam_open),
+            webcam_open.close(),
+            os.remove(webcam_tmpfile)
+        
+        # If captured image is corrupted, moving to else part
+        else:
+            print("No image detected. Please! try again")
 
     # CallbackQueries need to be answered, even if no notification to the user is needed
     # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
@@ -156,7 +195,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await query.edit_message_text(text=f"Currently {query.data} by @" + action_username + ".\n" + last_users_text + "\nOn for " + str(onsec) + " total seconds this session.\nTurn the Plug:", reply_markup=reply_markup) # Update the message text
     except Exception:
         pass
-
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Displays info on how to use the bot.
