@@ -30,3 +30,8 @@ This is the number of history lines to show under the current status. 0 disables
 2. Download pip from https://pip.pypa.io/en/stable/installation/
 3. Run `pip install -r requirements.txt` to install required libraries.
 4. Run the python file `kasa-telegram-bot.py`
+
+# Todo:
+- Create GUI (started, see 'gui' branch)
+- Make config.ini auto-populate specific missing entries. (eg, new feature added)
+- Create controls and logs via gui
