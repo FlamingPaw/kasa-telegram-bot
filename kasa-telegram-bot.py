@@ -41,17 +41,23 @@ last_users = []
 config = ConfigParser()
 
 if not os.path.exists('config.ini'):
-    config['KASA'] = {'ip': '192.168.xxx.xxx'}
-    config['TELEGRAM'] = {'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
-    config['TELEGRAM'] = {'user_history': '3'}
-    config['TELEGRAM'] = {'button_1': '2'}
-    config['TELEGRAM'] = {'button_2': '5'}
-    config['TELEGRAM'] = {'button_3': '10'}
-    config['WEBCAM'] = {'enable': 'false'}
-    config['WEBCAM'] = {'port': '0'}
-    config['WEBCAM'] = {'resolution_height': '1920'}
-    config['WEBCAM'] = {'resolution_height': '1080'}
-
+    default_cfg_data = {
+        'KASA': {'ip': '192.168.xxx.xxx'},
+        'TELEGRAM': {
+            'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+            'user_history': '3',
+            'button_1': '2',
+            'button_2': '5',
+            'button_3': '10'
+        },
+        'WEBCAM': {
+            'enabled': 'false',
+            'port': '0',
+            'resolution_height': '1920',
+            'resolution_width': '1080'
+        }
+    }
+    config.read_dict(default_cfg_data)
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
     logging.info('Config not found, creating default...')
