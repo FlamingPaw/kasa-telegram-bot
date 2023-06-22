@@ -1,6 +1,7 @@
 # kasa-telegram-bot
 A telegram bot used to interface with Kasa devices.
 This is not a general purpose bot, and is made specifically to turn on or off a single Kasa plug via telegram.
+NOTE: This is still very much a work in progress. If you want a working program, use the [Latest Release](https://github.com/FlamingPaw/kasa-telegram-bot/releases/latest/download/kasa-telegram-bot.exe)
 
 # Usage
 You can download the windows executable from [Latest Release](https://github.com/FlamingPaw/kasa-telegram-bot/releases/latest/download/kasa-telegram-bot.exe) or you can run the Python file yourself. See manual install for how.
