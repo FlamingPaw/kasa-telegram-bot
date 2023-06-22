@@ -15,6 +15,8 @@ import time
 import asyncio
 import logging
 import cv2 as cv
+import PySimpleGUI as sg
+from datetime import date
 
 try:
     from telegram import __version_info__
@@ -33,86 +35,13 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+application = None
 
-onsec = 0
-laston = int(time.time())
-last_users = []
-
-config = ConfigParser()
-
-if not os.path.exists('config.ini'):
-    config['KASA'] = {'ip': '192.168.xxx.xxx'}
-    config['TELEGRAM'] = {'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
-    config['TELEGRAM'] = {'user_history': '3'}
-    config['TELEGRAM'] = {'button_1': '2'}
-    config['TELEGRAM'] = {'button_2': '5'}
-    config['TELEGRAM'] = {'button_3': '10'}
-    config['WEBCAM'] = {'enable': 'false'}
-    config['WEBCAM'] = {'port': '0'}
-    config['WEBCAM'] = {'resolution_height': '1920'}
-    config['WEBCAM'] = {'resolution_height': '1080'}
-
-    with open('config.ini', 'w') as configfile:
-        config.write(configfile)
-    logging.info('Config not found, creating default...')
-    input("Configure Telegram Bot ID in config.ini to continue. Press any key to end...")
-    exit()
-else:
-    config.read('config.ini')
-
-logging.info('Starting to discover Kasa devices...')
-found_devices = asyncio.run(Discover.discover())
-
-if(len(found_devices) == 0):
-    logging.error('No KASA devices could be found on the network. Using coinfig.ini')
-    kasaip = config.get('KASA', 'ip')
-elif(len(found_devices) == 1):
-    logging.info('Automatically found one device, using it.')
-    for x in found_devices:
-        kasaip = x
-else:
-    logging.info('Automatically found more than one device.')
-    kasaip = config.get('KASA', 'ip')
-    if kasaip in found_devices:
-        logging.info('Device in config.ini found. Using it.')
-    else:
-        print()
-        logging.error('Device configured in config.ini was not found on the network. Here are the discovered devices, please update config.ini with one from this list.')
-        print()
-        for attr, value in found_devices.items():
-            print('MAC: ' + get_mac_address(ip=attr) + ' - IP: ' + attr)
-        print()
-        input("Configure Kasa ip in config.ini to continue. Press any key to end...")
-        exit()
-
-logging.info('Using device with IP: ' + kasaip)
-p = SmartPlug(kasaip)
-# Sends a message with three inline buttons attached.
-keyboard = [
-    [
-        InlineKeyboardButton(config.get('TELEGRAM', 'button_1') + " Seconds", callback_data="button_1"),
-        InlineKeyboardButton(config.get('TELEGRAM', 'button_2') + " Seconds", callback_data="button_2"),
-        InlineKeyboardButton(config.get('TELEGRAM', 'button_3') + " Seconds", callback_data="button_3"),
-    ],
-]
-
-if(config.get('WEBCAM', 'enabled') == 'true') :
-    logging.info('Config instructed to use Webcam, adding button.')
-    keyboard = [keyboard[0] + [InlineKeyboardButton("Webcam Photo", callback_data="webcam-photo")]]
-    # initialize the camera
-    # If you have multiple cameras connected with current device, assign a value in webcam_port config according to that.
-    cam_port = config.get('WEBCAM', 'port')
-    logging.info('Using camera ' + cam_port)
-    cam = cv.VideoCapture(int(cam_port))
-    cam.set(cv.CAP_PROP_FRAME_WIDTH, int(config.get('WEBCAM', 'resolution_height')))
-    cam.set(cv.CAP_PROP_FRAME_HEIGHT, int(config.get('WEBCAM', 'resolution_width')))
-    cam.set(cv.CAP_PROP_FOURCC, cv.VideoWriter_fourcc(*"MJPG"))
-else:
-    logging.info('Webcam NOT being used.')
-
-reply_markup = InlineKeyboardMarkup(keyboard)
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    print("START")
     await startMessage(update, context)
     await startPlug()
 
@@ -221,22 +150,186 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # Displays info on how to use the bot.
     await update.message.reply_text("Use /start to use this bot.\n\nCreated by @FlamingPaw\nRun your own at https://github.com/FlamingPaw/kasa-telegram-bot")
 
-def main() -> None:
-    # Run the bot.
-    # Create the Application and pass it your bot's token.
+onsec = 0
+laston = int(time.time())
+last_users = []
+p = None
+reply_markup = None
+config = None
+
+async def start_bot() -> None:
+    global application, config, onsec, laston, last_users, reply_markup, p
+
+    config = ConfigParser()
+
+    if not os.path.exists('config.ini'):
+        config['KASA'] = {'ip': '192.168.xxx.xxx'}
+        config['TELEGRAM'] = {'bot_token': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+        config['TELEGRAM'] = {'user_history': '3'}
+        config['TELEGRAM'] = {'button_1': '2'}
+        config['TELEGRAM'] = {'button_2': '5'}
+        config['TELEGRAM'] = {'button_3': '10'}
+        config['WEBCAM'] = {'enable': 'false'}
+        config['WEBCAM'] = {'port': '0'}
+        config['WEBCAM'] = {'resolution_height': '1920'}
+        config['WEBCAM'] = {'resolution_height': '1080'}
+
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+        logging.info('Config not found, creating default...')
+        input("Configure Telegram Bot ID in config.ini to continue. Press any key to end...")
+        exit()
+    else:
+        config.read('config.ini')
+
     bot_token = config.get('TELEGRAM', 'bot_token')
+
     application = Application.builder().token(bot_token).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(CommandHandler("help", help_command))
 
-    asyncio.run(startPlug())
+    async with application:
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling()
+        await launch()
 
-    # Run the bot until the user presses Ctrl-C
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    application.run_polling()
+async def launch():
+    global reply_markup, p, config, onsec, laston, last_users
+    logging.info('Starting to discover Kasa devices...')
+    found_devices = await Discover.discover()
 
-if __name__ == "__main__":
-    main()
+    if(len(found_devices) == 0):
+        logging.error('No KASA devices could be found on the network. Using coinfig.ini')
+        kasaip = config.get('KASA', 'ip')
+    elif(len(found_devices) == 1):
+        logging.info('Automatically found one device, using it.')
+        for x in found_devices:
+            kasaip = x
+    else:
+        logging.info('Automatically found more than one device.')
+        kasaip = config.get('KASA', 'ip')
+        if kasaip in found_devices:
+            logging.info('Device in config.ini found. Using it.')
+        else:
+            print()
+            logging.error('Device configured in config.ini was not found on the network. Here are the discovered devices, please update config.ini with one from this list.')
+            print()
+            for attr, value in found_devices.items():
+                print('MAC: ' + get_mac_address(ip=attr) + ' - IP: ' + attr)
+            print()
+            input("Configure Kasa ip in config.ini to continue. Press any key to end...")
+            exit()
+
+    logging.info('Using device with IP: ' + kasaip)
+    p = SmartPlug(kasaip)
+    await startPlug()
+    # Sends a message with three inline buttons attached.
+    keyboard = [
+        [
+            InlineKeyboardButton(config.get('TELEGRAM', 'button_1') + " Seconds", callback_data="button_1"),
+            InlineKeyboardButton(config.get('TELEGRAM', 'button_2') + " Seconds", callback_data="button_2"),
+            InlineKeyboardButton(config.get('TELEGRAM', 'button_3') + " Seconds", callback_data="button_3"),
+        ],
+    ]
+
+    if(config.get('WEBCAM', 'enabled') == 'true') :
+        logging.info('Config instructed to use Webcam, adding button.')
+        keyboard = [keyboard[0] + [InlineKeyboardButton("Webcam Photo", callback_data="webcam-photo")]]
+        # initialize the camera
+        # If you have multiple cameras connected with current device, assign a value in webcam_port config according to that.
+        cam_port = config.get('WEBCAM', 'port')
+        logging.info('Using camera ' + cam_port)
+        cam = cv.VideoCapture(int(cam_port))
+        cam.set(cv.CAP_PROP_FRAME_WIDTH, int(config.get('WEBCAM', 'resolution_height')))
+        cam.set(cv.CAP_PROP_FRAME_HEIGHT, int(config.get('WEBCAM', 'resolution_width')))
+        cam.set(cv.CAP_PROP_FOURCC, cv.VideoWriter_fourcc(*"MJPG"))
+    else:
+        logging.info('Webcam NOT being used.')
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+async def stop_bot():
+    await application.updater.stop()
+    await application.stop()
+    await application.shutdown()
+    await application.post_shutdown()
+
+def gui():
+    today = date.today()
+    theme_dict = {'BACKGROUND': '#2B475D',
+                'TEXT': '#FFFFFF',
+                'INPUT': '#F2EFE8',
+                'TEXT_INPUT': '#000000',
+                'SCROLL': '#F2EFE8',
+                'BUTTON': ('#000000', '#C2D4D8'),
+                'PROGRESS': ('#FFFFFF', '#C7D5E0'),
+                'BORDER': 0,'SLIDER_DEPTH': 0, 'PROGRESS_DEPTH': 0}
+
+    sg.theme_add_new('Dashboard', theme_dict)
+    sg.theme('Dashboard')
+
+    BORDER_COLOR = '#C7D5E0'
+    DARK_HEADER_COLOR = '#1B2838'
+    BPAD_TOP = ((20,20), (20, 10))
+    BPAD_LEFT = ((20,10), (0, 0))
+    BPAD_LEFT_INSIDE = (0, (10, 0))
+    BPAD_RIGHT = ((10,20), (10, 0))
+
+    top_banner = [
+                [sg.Text('Dashboard', font='Any 20', background_color=DARK_HEADER_COLOR, enable_events=True, grab=False), sg.Push(background_color=DARK_HEADER_COLOR),
+                sg.Text(today.strftime("%B %d, %Y"), font='Any 20', background_color=DARK_HEADER_COLOR)],
+                ]
+
+    top  = [[sg.Push(), sg.Text('A heading', font='Any 20'), sg.Push()],
+                [sg.T('This Frame has a relief while the others do not')]]
+
+    block_3 = [[sg.Text('Bot Status: '), sg.Text('Stopped', key='status')],
+              [sg.Button('Start'), sg.Button('Stop', disabled=True), sg.Exit()]]
+
+
+    block_2 = [[sg.Text('Block 2', font='Any 20')],
+                [sg.T('This is some random text')],
+                [sg.Image(data=sg.DEFAULT_BASE64_ICON, enable_events=True)]  ]
+
+    block_4 = [[sg.Text('Block 4', font='Any 20')],
+                [sg.T('You can move the window by grabbing this block (and the top banner)')],
+                [sg.T('This block is a Column Element')],
+                [sg.T('The others are all frames')],
+                [sg.T('The Frame Element, with a border_width=0\n    and no title is just like a Column')],
+                [sg.T('Frames that have a fixed size \n    handle element_justification better than Columns')]]
+
+
+    layout = [
+            [sg.Frame('', top_banner,   pad=(0,0), background_color=DARK_HEADER_COLOR,  expand_x=True, border_width=0, grab=True)],
+            [sg.Frame('', top, size=(920, 100), pad=BPAD_TOP,  expand_x=True,  relief=sg.RELIEF_GROOVE, border_width=3)],
+            [sg.Frame('', [[sg.Frame('', block_2, size=(450,150), pad=BPAD_LEFT_INSIDE, border_width=0, expand_x=True, expand_y=True, )],
+                            [sg.Frame('', block_3, size=(450,150),  pad=BPAD_LEFT_INSIDE, border_width=0, expand_x=True, expand_y=True, element_justification='c')]],
+                        pad=BPAD_LEFT, background_color=BORDER_COLOR, border_width=0, expand_x=True, expand_y=True),
+            sg.Column(block_4, size=(450, 320), pad=BPAD_RIGHT,  expand_x=True, expand_y=True, grab=True),],[sg.Sizegrip(background_color=BORDER_COLOR)]]
+
+    window = sg.Window('Kasa Telegram Bot', layout, margins=(0,0), background_color=BORDER_COLOR, no_titlebar=False, resizable=True)
+    # Event Loop to process "events" and get the "values" of the inputs
+    while True:
+        event, values = window.read()
+        if event == 'Start':
+            if application is None:
+                asyncio.run(start_bot())
+            else:
+                asyncio.run(application.updater.start_polling())
+            window.find_element('Start').Update(disabled=True)
+            window.find_element('Stop').Update(disabled=False)
+            window.find_element('status').Update('Running')
+        if event == 'Stop':
+            asyncio.run(stop_bot())
+            window.find_element('Start').Update(disabled=False)
+            window.find_element('Stop').Update(disabled=True)
+            window.find_element('status').Update('Stopped')
+        if event in (None, 'Exit'):
+            break
+    if application is not None and application.running:
+        asyncio.run(stop_bot())
+    window.close()
+gui()
