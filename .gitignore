@@ -161,3 +161,5 @@ cython_debug/
 
 config.ini
 kasa-telegram-bot-REKNAR_CUSTOM.py
+.vscode
+build.bat
