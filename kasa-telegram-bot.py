@@ -83,7 +83,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     ):
         action_username = query.from_user.username
     else:
-        window["tg_log"].print("The ChatType of " + query.message.chat.type + " is not supported yet.")
+        window["tg_log"].print(
+            "The ChatType of " + query.message.chat.type + " is not supported yet."
+        )
 
     last_users_text = ""
     user_history = int(config.get("TELEGRAM", "user_history"))
@@ -100,7 +102,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     + user
                     + " turned the plug on for "
                     + config.get("TELEGRAM", action)
-                    + " seconds."
+                    + " "
+                    + config.get("BOT", "time_label")
+                    + "."
                 )
         last_users_text += "\n"
 
@@ -126,16 +130,24 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             + last_users_text
             + "\nOn for "
             + str(onsec)
-            + " total seconds this session.\nTurn the Plug:",
+            + " total "
+            + config.get("BOT", "time_label")
+            + " this session.\nTurn the Plug:",
             reply_markup=reply_markup,
         )
-        window["tg_live"].update("Currently " + query.data + " by @"
+        window["tg_live"].update(
+            "Currently "
+            + query.data
+            + " by @"
             + action_username
             + ".\n"
             + last_users_text
             + "\nOn for "
             + str(onsec)
-            + " total seconds this session.")
+            + " total "
+            + config.get("BOT", "time_label")
+            + " this session."
+        )
         window["bot_log"].print(query.data)
         # reading the input using the camera
         result, image = cam.read()
@@ -155,7 +167,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 query.data = "on"
             else:
                 query.data = "off"
-            query = await context.application.bot.send_message(
+            window["tg_live"].update(
+                "Currently "
+                + query.data
+                + " by @"
+                + action_username
+                + ".\n"
+                + last_users_text
+                + "\nOn for "
+                + str(onsec)
+                + " total "
+                + config.get("BOT", "time_label")
+                + " this session."
+            )
+            window["tg_log"].print(action_username + " requested webcam image.")
+            await context.application.bot.send_message(
                 query.message.chat_id,
                 text=f"Currently {query.data} by @"
                 + action_username
@@ -163,17 +189,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 + last_users_text
                 + "\nOn for "
                 + str(onsec)
-                + " total seconds this session.\nTurn the Plug:",
+                + " total "
+                + config.get("BOT", "time_label")
+                + " this session.\nTurn the Plug:",
                 reply_markup=reply_markup,
             )
-            window["tg_live"].update("Currently " + query.data + " by @"
-                + action_username
-                + ".\n"
-                + last_users_text
-                + "\nOn for "
-                + str(onsec)
-                + " total seconds this session.")
-            window["tg_log"].print(action_username + "requested webcam image.")
 
         # If captured image is corrupted, moving to else part
         else:
@@ -189,16 +209,24 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             + last_users_text
             + "\nOn for "
             + str(onsec)
-            + " total seconds this session.\nTurn the Plug:",
+            + " total "
+            + config.get("BOT", "time_label")
+            + " this session.\nTurn the Plug:",
             reply_markup=reply_markup,
         )  # Update the message text
-        window["tg_live"].update("Currently " + query.data + " by @"
+        window["tg_live"].update(
+            "Currently "
+            + query.data
+            + " by @"
             + action_username
             + ".\n"
             + last_users_text
             + "\nOn for "
             + str(onsec)
-            + " total seconds this session.")
+            + " total "
+            + config.get("BOT", "time_label")
+            + " this session."
+        )
     except Exception:
         pass
 
@@ -210,8 +238,7 @@ async def plugTimer(
     action_username,
     last_users_text,
 ) -> None:
-    global onsec
-    global laston
+    global onsec, laston, config
 
     now = int(time.time())
 
@@ -221,9 +248,20 @@ async def plugTimer(
     await p.update()  # Request the update
 
     if p.is_off:
-        window["bot_log"].print("Turning plug on for " + str(timesec) + " seconds...")
+        window["bot_log"].print(
+            "Turning plug on for "
+            + str(timesec)
+            + " "
+            + config.get("BOT", "time_label")
+            + "..."
+        )
         window["tg_log"].print(
-            action_username + " turned the plug on for " + str(timesec) + " seconds."
+            action_username
+            + " turned the plug on for "
+            + str(timesec)
+            + " "
+            + config.get("BOT", "time_label")
+            + "."
         )
         await p.turn_on()  # Turn the plug on
         # onsec = onsec + (now - laston)
@@ -232,24 +270,34 @@ async def plugTimer(
             await query.edit_message_text(
                 text=f"Currently on for "
                 + str(config.get("TELEGRAM", query.data))
-                + " seconds by @"
+                + " "
+                + config.get("BOT", "time_label")
+                + " by @"
                 + action_username
                 + ".\n"
                 + last_users_text
                 + "\nOn for "
                 + str(onsec)
-                + " total seconds this session.\nTurn the Plug:",
+                + " total "
+                + config.get("BOT", "time_label")
+                + " this session.\nTurn the Plug:",
                 reply_markup=reply_markup,
             )  # Update the message text
-            window["tg_live"].update("Currently on for "
+            window["tg_live"].update(
+                "Currently on for "
                 + str(config.get("TELEGRAM", query.data))
-                + " seconds by @"
+                + " "
+                + config.get("BOT", "time_label")
+                + " by @"
                 + action_username
                 + ".\n"
                 + last_users_text
                 + "\nOn for "
                 + str(onsec)
-                + " total seconds this session.")
+                + " total "
+                + config.get("BOT", "time_label")
+                + " this session."
+            )
         except Exception:
             pass
         time.sleep(timesec)
@@ -290,6 +338,9 @@ def start_bot() -> None:
                         "port": "0",
                         "resolution_height": "1920",
                         "resolution_width": "1080",
+                    },
+                    "BOT": {
+                        "time_label": "Seconds",
                     },
                 }
                 config.read_dict(default_cfg_data)
@@ -357,18 +408,25 @@ async def launch():
     p = SmartPlug(kasaip)
     await startPlug()
     # Sends a message with three inline buttons attached.
+    # TODO: Make this dynamic. The button controller can already accept any value.
     keyboard = [
         [
             InlineKeyboardButton(
-                config.get("TELEGRAM", "button_1") + " Seconds",
+                config.get("TELEGRAM", "button_1")
+                + " "
+                + config.get("BOT", "time_label"),
                 callback_data="button_1",
             ),
             InlineKeyboardButton(
-                config.get("TELEGRAM", "button_2") + " Seconds",
+                config.get("TELEGRAM", "button_2")
+                + " "
+                + config.get("BOT", "time_label"),
                 callback_data="button_2",
             ),
             InlineKeyboardButton(
-                config.get("TELEGRAM", "button_3") + " Seconds",
+                config.get("TELEGRAM", "button_3")
+                + " "
+                + config.get("BOT", "time_label"),
                 callback_data="button_3",
             ),
         ],
@@ -413,9 +471,22 @@ def gui():
     sg.theme("Dashboard")
 
     BORDER_COLOR = "#C7D5E0"
+    DARK_HEADER_COLOR = "#1B2838"
     BPAD_LEFT = ((20, 10), (0, 0))
     BPAD_LEFT_INSIDE = (0, (10, 0))
     BPAD_RIGHT = ((10, 20), (10, 0))
+
+    top_banner = [
+        [
+            sg.Text(
+                "Pre-release v0.2",
+                font="Any 20",
+                background_color=DARK_HEADER_COLOR,
+                expand_x=True,
+                expand_y=True,
+            )
+        ]
+    ]
 
     block_1 = [
         [sg.Text("Bot Controls", font="Any 20")],
@@ -471,6 +542,25 @@ def gui():
                     [
                         sg.Frame(
                             "",
+                            top_banner,
+                            size=(960, 60),
+                            pad=BPAD_LEFT_INSIDE,
+                            border_width=0,
+                            background_color=DARK_HEADER_COLOR,
+                            expand_x=True,
+                            expand_y=True,
+                        )
+                    ]
+                ],
+            )
+        ],
+        [
+            sg.Frame(
+                "",
+                [
+                    [
+                        sg.Frame(
+                            "",
                             block_2,
                             size=(450, 150),
                             pad=BPAD_LEFT_INSIDE,
@@ -494,7 +584,7 @@ def gui():
                     [
                         sg.Frame(
                             "",
-                             block_3,
+                            block_3,
                             size=(450, 320),
                             pad=BPAD_LEFT_INSIDE,
                             expand_x=True,
