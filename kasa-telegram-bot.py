@@ -39,7 +39,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 application = None
 onsec = 0
-laston = int(time.time())
+status = "Off"
 last_users = []
 p = None
 reply_markup = None
@@ -68,9 +68,9 @@ async def startPlug() -> None:
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global onsec
-    global laston
     global last_users
     global cam
+    global status
 
     # Parses the CallbackQuery and updates the message text.
     query = update.callback_query
@@ -94,6 +94,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         last_users.append([action_username, query.data])
 
         for user, action in last_users[-user_history:]:
+            if not user:
+                user = "Unknown User"
+            if not action:
+                action = "Unknown Action"
             if action == "webcam-photo":
                 last_users_text += "\n" + user + " captured a webcam photo."
             else:
@@ -122,9 +126,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             last_users_text,
         )
     elif query.data == "webcam-photo":  # If the webcam capture button was pressed
-        query.data = "Capturing webcam image"
+        status = "Capturing webcam photo"
         await query.edit_message_text(
-            text=f"Currently {query.data} by @"
+            text=f"Currently {status} by @"
             + action_username
             + ".\n"
             + last_users_text
@@ -137,7 +141,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         window["tg_live"].update(
             "Currently "
-            + query.data
+            + status
             + " by @"
             + action_username
             + ".\n"
@@ -164,12 +168,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             webcam_open.close(),
             os.remove(webcam_tmpfile)
             if p.is_on:
-                query.data = "on"
+                status = "On"
             else:
-                query.data = "off"
+                status = "Off"
             window["tg_live"].update(
                 "Currently "
-                + query.data
+                + status
                 + " by @"
                 + action_username
                 + ".\n"
@@ -183,7 +187,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             window["tg_log"].print(action_username + " requested webcam image.")
             await context.application.bot.send_message(
                 query.message.chat_id,
-                text=f"Currently {query.data} by @"
+                text=f"Currently {status} by @"
                 + action_username
                 + ".\n"
                 + last_users_text
@@ -203,7 +207,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
     try:
         await query.edit_message_text(
-            text=f"Currently {query.data} by @"
+            text=f"Currently {status} by @"
             + action_username
             + ".\n"
             + last_users_text
@@ -216,7 +220,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )  # Update the message text
         window["tg_live"].update(
             "Currently "
-            + query.data
+            + status
             + " by @"
             + action_username
             + ".\n"
@@ -238,12 +242,14 @@ async def plugTimer(
     action_username,
     last_users_text,
 ) -> None:
-    global onsec, laston, config
+    global onsec, config, status
 
     now = int(time.time())
 
     # Parses the CallbackQuery and updates the message text.
     query = update.callback_query
+    if not action_username:
+        action_username = "Unknown User"
 
     await p.update()  # Request the update
 
@@ -264,8 +270,6 @@ async def plugTimer(
             + "."
         )
         await p.turn_on()  # Turn the plug on
-        # onsec = onsec + (now - laston)
-        laston = int(time.time())
         try:
             await query.edit_message_text(
                 text=f"Currently on for "
@@ -303,16 +307,15 @@ async def plugTimer(
         time.sleep(timesec)
         await p.turn_off()  # Turn the plug off
         now = int(time.time())
-        onsec = onsec + (now - laston)
-        laston = 0
-        query.data = "off"
+        onsec += timesec
+        status = "Off"
         window["bot_log"].print("Turned plug off.")
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Displays info on how to use the bot.
     await update.message.reply_text(
-        "Use /start to use this bot.\n\nCreated by @FlamingPaw\nRun your own at https://github.com/FlamingPaw/kasa-telegram-bot"
+        "Use /start to use this bot.\n\nCreated by @FlamingPaw & @ReknarSven  \nRun your own at https://github.com/FlamingPaw/kasa-telegram-bot \n Contact @ReknarSven for issues and Concerns" 
     )
     window["tg_log"].print("Answering '/help' command.")
 
@@ -358,11 +361,11 @@ def start_bot() -> None:
             asyncio.run(launch())
 
             application = (
-                Application.builder().token(config.get("TELEGRAM", "bot_token")).build()
+                Application.builder().token(config.get("TELEGRAM", "bot_token")).read_timeout(100).get_updates_read_timeout(100).build()
             )
 
             application.add_handler(CommandHandler("start", start))
-            application.add_handler(CallbackQueryHandler(button))
+            application.add_handler(CallbackQueryHandler(button, block = False))
             application.add_handler(CommandHandler("help", help_command))
 
             window.find_element("status").Update("Running")
@@ -370,13 +373,16 @@ def start_bot() -> None:
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            application.run_polling()
+            try:
+                application.run_polling(timeout=30, read_timeout=30)
+            except:
+                pass
         else:
             sleep(1)
 
 
 async def launch():
-    global reply_markup, p, config, onsec, laston, last_users, cam
+    global reply_markup, p, config, onsec, last_users, cam
     window["bot_log"].print("Starting to discover Kasa devices...")
     found_devices = await Discover.discover()
 
@@ -428,9 +434,13 @@ async def launch():
                 + " "
                 + config.get("BOT", "time_label"),
                 callback_data="button_3",
+
             ),
+
         ],
     ]
+
+    
 
     if config.get("WEBCAM", "enabled") == "true":
         window["bot_log"].print("Config instructed to use Webcam, adding button.")
