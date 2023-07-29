@@ -1,6 +1,6 @@
 ConfigParser==5.3.0
 getmac==0.9.3
-kasa==0.0.3
+python-kasa==0.5.2
 python-telegram-bot==20.2
 opencv-python==4.7.0.72
 pysimplegui==4.60.5
